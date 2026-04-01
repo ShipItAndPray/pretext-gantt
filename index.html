@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>pretext-gantt -- Zero-Flicker Gantt Chart</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0D0D1A;
+    color: #E0E0F0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    background: linear-gradient(135deg, #4F8EF7, #34D399);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    color: #808098;
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+
+  .badges {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .badge--green {
+    background: rgba(52, 211, 153, 0.15);
+    color: #34D399;
+    border: 1px solid rgba(52, 211, 153, 0.3);
+  }
+
+  .badge--blue {
+    background: rgba(79, 142, 247, 0.15);
+    color: #4F8EF7;
+    border: 1px solid rgba(79, 142, 247, 0.3);
+  }
+
+  .badge--purple {
+    background: rgba(139, 92, 246, 0.15);
+    color: #8B5CF6;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+  }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  button {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid #333348;
+    background: #1E1E2E;
+    color: #C0C0D0;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  button:hover {
+    background: #2A2A3E;
+    border-color: #4F8EF7;
+    color: #FFF;
+  }
+
+  .chart-wrapper {
+    width: 100%;
+    max-width: 1200px;
+    background: #141420;
+    border-radius: 12px;
+    border: 1px solid #1E1E2E;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    resize: horizontal;
+    overflow-x: auto;
+    min-width: 400px;
+    padding: 0;
+  }
+
+  #gantt-container {
+    width: 100%;
+    min-height: 200px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #808098;
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+  }
+
+  .info {
+    margin-top: 24px;
+    max-width: 600px;
+    text-align: center;
+    color: #606078;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .info a {
+    color: #4F8EF7;
+    text-decoration: none;
+  }
+
+  .info a:hover { text-decoration: underline; }
+
+  @media (max-width: 640px) {
+    h1 { font-size: 22px; }
+    .chart-wrapper { min-width: 320px; border-radius: 8px; }
+    body { padding: 16px 8px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>pretext-gantt</h1>
+<p class="subtitle">Zero-flicker Gantt chart with Pretext label placement</p>
+
+<div class="badges">
+  <span class="badge badge--green">0 layout shifts</span>
+  <span class="badge badge--blue">Canvas rendered</span>
+  <span class="badge badge--purple">Pretext-powered</span>
+</div>
+
+<div class="controls">
+  <button id="btn-add">+ Add Task</button>
+  <button id="btn-shuffle">Shuffle Progress</button>
+  <button id="btn-reset">Reset</button>
+</div>
+
+<div class="chart-wrapper">
+  <div id="gantt-container"></div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#4F8EF7"></div> Planning</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#34D399"></div> Design</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#F59E0B"></div> Development</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#8B5CF6"></div> Testing</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#EC4899"></div> Deployment</div>
+</div>
+
+<p class="info">
+  Drag the chart container's right edge to resize -- labels reflow instantly using pure arithmetic (no DOM measurement).<br />
+  Built with <a href="https://github.com/chenglou/pretext">@chenglou/pretext</a>.
+  <a href="https://github.com/ShipItAndPray/pretext-gantt">Source on GitHub</a>.
+</p>
+
+<script type="module">
+// ============================================================
+// Inline Pretext mock for demo (real apps use @chenglou/pretext)
+// This simulates prepare() + layout() with canvas measureText.
+// ============================================================
+const _canvas = document.createElement("canvas");
+const _ctx = _canvas.getContext("2d");
+const _cache = new Map();
+
+const pretext = {
+  prepare(font, texts) {
+    _ctx.font = `13px ${font}`;
+    for (const t of texts) {
+      if (!_cache.has(font + "|" + t)) {
+        _cache.set(font + "|" + t, _ctx.measureText(t).width);
+      }
+    }
+  },
+  layout(font, text) {
+    const key = font + "|" + text;
+    if (_cache.has(key)) return { width: _cache.get(key), height: 14 };
+    _ctx.font = `13px ${font}`;
+    const w = _ctx.measureText(text).width;
+    _cache.set(key, w);
+    return { width: w, height: 14 };
+  },
+};
+
+// ============================================================
+// Inline library (for the demo -- production uses the npm package)
+// ============================================================
+
+const MS_PER_DAY = 86400000;
+
+function dateToX(date, rangeStart, rangeEnd, chartWidth) {
+  const total = rangeEnd.getTime() - rangeStart.getTime();
+  if (total <= 0) return 0;
+  return ((date.getTime() - rangeStart.getTime()) / total) * chartWidth;
+}
+
+function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
+
+const PALETTE = ["#4F8EF7","#34D399","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#F97316"];
+function colorForIndex(i) { return PALETTE[i % PALETTE.length]; }
+
+function formatMonth(d) {
+  const m = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return m[d.getMonth()] + " " + d.getFullYear();
+}
+
+function formatDate(d) {
+  const m = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return m[d.getMonth()] + " " + d.getDate();
+}
+
+function resolveTimeRange(tasks, opt) {
+  if (opt) return opt;
+  if (!tasks.length) { const n = new Date(); return { start: n, end: new Date(n.getTime() + 30*MS_PER_DAY) }; }
+  let mn = tasks[0].start.getTime(), mx = tasks[0].end.getTime();
+  for (const t of tasks) { if (t.start.getTime() < mn) mn = t.start.getTime(); if (t.end.getTime() > mx) mx = t.end.getTime(); }
+  const pad = (mx - mn) * 0.05 || MS_PER_DAY;
+  return { start: new Date(mn - pad), end: new Date(mx + pad) };
+}
+
+function decideLabelPlacement(label, barW, barX, chartW, pt, pad) {
+  const full = pt.layout(label);
+  if (full.width + pad*2 <= barW) return { placement: "inside", text: label, labelWidth: full.width };
+  const sr = chartW - (barX + barW);
+  if (full.width + pad*2 <= sr) return { placement: "outside", text: label, labelWidth: full.width };
+  const ms = Math.max(barW, sr) - pad*2;
+  if (ms <= 0) return { placement: "hidden", text: "", labelWidth: 0 };
+  const ew = pt.layout("\u2026").width;
+  if (ew > ms) return { placement: "hidden", text: "", labelWidth: 0 };
+  let lo=1, hi=label.length-1, best=0;
+  while(lo<=hi){ const mid=(lo+hi)>>>1; const w=pt.layout(label.slice(0,mid)+"\u2026").width; if(w<=ms){best=mid;lo=mid+1;}else{hi=mid-1;} }
+  if(!best) return { placement: "hidden", text: "", labelWidth: 0 };
+  const tr = label.slice(0,best)+"\u2026";
+  return { placement: "truncated", text: tr, labelWidth: pt.layout(tr).width };
+}
+
+function computeLayout(tasks, opts, pt, chartW) {
+  const bh = opts.barHeight||32, rg = opts.rowGap||8, hh = opts.headerHeight||48, pad = opts.padding||8;
+  const range = resolveTimeRange(tasks, opts.timeRange);
+  pt.prepare(tasks.map(t => t.label));
+  const bars = [], tm = new Map();
+  for (let i=0; i<tasks.length; i++) {
+    const t = tasks[i];
+    const bx = dateToX(t.start, range.start, range.end, chartW);
+    const be = dateToX(t.end, range.start, range.end, chartW);
+    const bw = Math.max(be-bx,2);
+    const by = hh + i*(bh+rg);
+    const c = t.color||colorForIndex(i);
+    const lr = decideLabelPlacement(t.label, bw, bx, chartW, pt, pad);
+    let lx = lr.placement==="outside" ? bx+bw+pad : bx+pad;
+    if (lr.placement==="hidden") lx=0;
+    const bar = { taskId:t.id, x:bx, y:by, width:bw, height:bh, color:c, progress:clamp(t.progress||0,0,1), label:{ taskId:t.id, placement:lr.placement, text:lr.text, x:lx, y:by+bh/2, width:lr.labelWidth } };
+    bars.push(bar); tm.set(t.id, bar);
+  }
+  const arrows = [];
+  for (const t of tasks) { if (!t.dependencies) continue; const tb = tm.get(t.id); if(!tb) continue;
+    for (const d of t.dependencies) { const fb = tm.get(d); if(!fb) continue; arrows.push({ fromId:d, toId:t.id, fromX:fb.x+fb.width, fromY:fb.y+fb.height/2, toX:tb.x, toY:tb.y+tb.height/2 }); } }
+  return { bars, arrows };
+}
+
+function roundRect(ctx,x,y,w,h,r) {
+  r=Math.min(r,w/2,h/2); ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+  ctx.arcTo(x+w,y,x+w,y+r,r); ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r); ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r); ctx.closePath();
+}
+
+// ============================================================
+// Demo data: 18 tasks across a 3-month project
+// ============================================================
+const BASE = new Date("2026-03-01");
+function d(offset, days) { return { start: new Date(BASE.getTime() + offset*MS_PER_DAY), end: new Date(BASE.getTime() + (offset+days)*MS_PER_DAY) }; }
+
+const SAMPLE_TASKS = [
+  { id:"1",  label:"Project Kickoff",        ...d(0,3),   color:"#4F8EF7", progress:1.0 },
+  { id:"2",  label:"Requirements Gathering",  ...d(3,7),   color:"#4F8EF7", progress:1.0, dependencies:["1"] },
+  { id:"3",  label:"Technical Spec",          ...d(8,5),   color:"#4F8EF7", progress:0.9, dependencies:["2"] },
+  { id:"4",  label:"UI/UX Wireframes",        ...d(10,8),  color:"#34D399", progress:0.8, dependencies:["2"] },
+  { id:"5",  label:"Design System Setup",     ...d(14,6),  color:"#34D399", progress:0.7, dependencies:["4"] },
+  { id:"6",  label:"High-Fidelity Mockups",   ...d(18,10), color:"#34D399", progress:0.5, dependencies:["4","5"] },
+  { id:"7",  label:"Frontend Architecture",   ...d(13,5),  color:"#F59E0B", progress:0.6, dependencies:["3"] },
+  { id:"8",  label:"Component Library",       ...d(18,14), color:"#F59E0B", progress:0.4, dependencies:["7","5"] },
+  { id:"9",  label:"API Design",              ...d(13,7),  color:"#F59E0B", progress:0.5, dependencies:["3"] },
+  { id:"10", label:"Database Schema",         ...d(16,5),  color:"#F59E0B", progress:0.3, dependencies:["9"] },
+  { id:"11", label:"Backend Services",        ...d(20,18), color:"#F59E0B", progress:0.2, dependencies:["9","10"] },
+  { id:"12", label:"Authentication Module",   ...d(22,8),  color:"#F59E0B", progress:0.1, dependencies:["11"] },
+  { id:"13", label:"Dashboard Pages",         ...d(28,12), color:"#F59E0B", progress:0.0, dependencies:["6","8"] },
+  { id:"14", label:"Data Visualization",      ...d(35,10), color:"#F59E0B", progress:0.0, dependencies:["13"] },
+  { id:"15", label:"Unit Tests",              ...d(25,20), color:"#8B5CF6", progress:0.1, dependencies:["8","11"] },
+  { id:"16", label:"Integration Testing",     ...d(40,10), color:"#8B5CF6", progress:0.0, dependencies:["13","15"] },
+  { id:"17", label:"Performance Optimization",...d(45,8),  color:"#8B5CF6", progress:0.0, dependencies:["16"] },
+  { id:"18", label:"Production Deployment",   ...d(53,5),  color:"#EC4899", progress:0.0, dependencies:["17"] },
+];
+
+let tasks = JSON.parse(JSON.stringify(SAMPLE_TASKS));
+// Fix dates (JSON stringified)
+function fixDates(arr) { for (const t of arr) { t.start = new Date(t.start); t.end = new Date(t.end); } }
+fixDates(tasks);
+
+const container = document.getElementById("gantt-container");
+const font = "Inter, -apple-system, BlinkMacSystemFont, sans-serif";
+
+function renderChart() {
+  // Clear
+  container.innerHTML = "";
+
+  const canvas = document.createElement("canvas");
+  canvas.style.width = "100%";
+  canvas.style.display = "block";
+  container.appendChild(canvas);
+
+  const rect = container.getBoundingClientRect();
+  const w = rect.width;
+  const bh = 30, rg = 6, hh = 48, pad = 8;
+  const chartH = hh + tasks.length * (bh + rg) + rg;
+
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr;
+  canvas.height = chartH * dpr;
+  canvas.style.height = chartH + "px";
+
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  // Background
+  ctx.fillStyle = "#141420";
+  ctx.fillRect(0, 0, w, chartH);
+
+  // Wrap pretext for layout.ts interface
+  const ptHandle = {
+    prepare(texts) { pretext.prepare(font, texts); },
+    layout(text) { return pretext.layout(font, text); },
+  };
+
+  const { bars, arrows } = computeLayout(tasks, { tasks, font, barHeight:bh, rowGap:rg, headerHeight:hh, padding:pad }, ptHandle, w);
+  const range = resolveTimeRange(tasks);
+
+  // Grid rows
+  ctx.strokeStyle = "#1E1E2E"; ctx.lineWidth = 1;
+  for (let i=0; i<=tasks.length; i++) { const y=hh+i*(bh+rg)-rg/2; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+
+  // Header
+  ctx.fillStyle = "#1E1E2E"; ctx.fillRect(0,0,w,hh);
+  ctx.fillStyle = "#A0A0B8"; ctx.font = `bold 11px ${font}`; ctx.textBaseline = "middle";
+  const mc = new Date(range.start); mc.setDate(1);
+  while (mc.getTime() <= range.end.getTime()) {
+    const x = dateToX(mc, range.start, range.end, w);
+    if (x >= 0 && x < w) { ctx.fillText(formatMonth(mc), Math.max(x+4,4), hh/3); ctx.strokeStyle="#2A2A3E"; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x,hh*0.6); ctx.lineTo(x,hh); ctx.stroke(); }
+    mc.setMonth(mc.getMonth()+1);
+  }
+  const wc = new Date(range.start); const dy=wc.getDay(); wc.setDate(wc.getDate()+(dy===0?1:(8-dy)%7));
+  ctx.fillStyle="#606078"; ctx.font=`10px ${font}`;
+  while(wc.getTime()<=range.end.getTime()){ const x=dateToX(wc,range.start,range.end,w); if(x>=0&&x<w) ctx.fillText(formatDate(wc),x+2,hh*2/3+4); wc.setDate(wc.getDate()+7); }
+  ctx.strokeStyle="#333348"; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,hh-0.5); ctx.lineTo(w,hh-0.5); ctx.stroke();
+
+  // Bars
+  for (const bar of bars) {
+    ctx.save();
+    ctx.fillStyle=bar.color; ctx.globalAlpha=0.3; roundRect(ctx,bar.x,bar.y,bar.width,bar.height,4); ctx.fill();
+    if(bar.progress>0){ ctx.globalAlpha=1; ctx.fillStyle=bar.color; roundRect(ctx,bar.x,bar.y,bar.width*bar.progress,bar.height,4); ctx.fill(); }
+    ctx.globalAlpha=1; ctx.strokeStyle=bar.color; ctx.lineWidth=1; roundRect(ctx,bar.x,bar.y,bar.width,bar.height,4); ctx.stroke();
+    ctx.restore();
+  }
+
+  // Labels
+  ctx.font=`13px ${font}`; ctx.textBaseline="middle";
+  for (const bar of bars) {
+    const l = bar.label; if(l.placement==="hidden") continue;
+    ctx.fillStyle = l.placement==="inside" ? "#FFFFFF" : l.placement==="outside" ? "#C0C0D0" : "#FFFFFF";
+    ctx.fillText(l.text, l.x, l.y);
+  }
+
+  // Arrows
+  ctx.strokeStyle="#606078"; ctx.fillStyle="#606078"; ctx.lineWidth=1.5;
+  for (const a of arrows) {
+    const mx = a.fromX+12;
+    ctx.beginPath(); ctx.moveTo(a.fromX,a.fromY); ctx.lineTo(mx,a.fromY); ctx.lineTo(mx,a.toY); ctx.lineTo(a.toX-2,a.toY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(a.toX,a.toY); ctx.lineTo(a.toX-6,a.toY-3); ctx.lineTo(a.toX-6,a.toY+3); ctx.closePath(); ctx.fill();
+  }
+
+  // Today line
+  const now = new Date();
+  if (now >= range.start && now <= range.end) {
+    const tx = dateToX(now, range.start, range.end, w);
+    ctx.strokeStyle="#EF4444"; ctx.lineWidth=2; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(tx,hh); ctx.lineTo(tx,chartH); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle="#EF4444"; ctx.font="bold 10px sans-serif"; ctx.textAlign="center";
+    ctx.fillText("Today",tx,hh-4);
+  }
+}
+
+// Initial render
+renderChart();
+
+// Resize observer
+const ro = new ResizeObserver(() => renderChart());
+ro.observe(document.querySelector(".chart-wrapper"));
+
+// Controls
+let taskCounter = 19;
+document.getElementById("btn-add").addEventListener("click", () => {
+  const lastEnd = tasks.reduce((m, t) => Math.max(m, t.end.getTime()), 0);
+  const names = ["Code Review","Bug Fixes","Documentation","Security Audit","Load Testing","Monitoring Setup","CI/CD Pipeline","Feature Flag Rollout","A/B Testing","Analytics Integration"];
+  const colors = PALETTE;
+  const name = names[(taskCounter-19) % names.length];
+  tasks.push({
+    id: String(taskCounter),
+    label: name,
+    start: new Date(lastEnd - 3*MS_PER_DAY),
+    end: new Date(lastEnd + (5+Math.random()*10)*MS_PER_DAY),
+    color: colors[taskCounter % colors.length],
+    progress: 0,
+    dependencies: [String(taskCounter-1)],
+  });
+  taskCounter++;
+  renderChart();
+});
+
+document.getElementById("btn-shuffle").addEventListener("click", () => {
+  for (const t of tasks) { t.progress = Math.min(1, Math.max(0, (t.progress||0) + (Math.random()-0.3)*0.3)); }
+  renderChart();
+});
+
+document.getElementById("btn-reset").addEventListener("click", () => {
+  tasks = JSON.parse(JSON.stringify(SAMPLE_TASKS));
+  fixDates(tasks);
+  taskCounter = 19;
+  renderChart();
+});
+</script>
+</body>
+</html>

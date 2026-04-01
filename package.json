@@ -1,0 +1,47 @@
+{
+  "name": "@shipitandpray/pretext-gantt",
+  "version": "0.1.0",
+  "description": "Zero-flicker Gantt chart. Task labels placed correctly on frame 1 using Pretext.",
+  "author": "ShipItAndPray",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "dev": "tsup --watch"
+  },
+  "peerDependencies": {
+    "@chenglou/pretext": ">=0.0.3"
+  },
+  "devDependencies": {
+    "@chenglou/pretext": "^0.0.3",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  },
+  "keywords": [
+    "gantt",
+    "chart",
+    "pretext",
+    "zero-flicker",
+    "zero-layout-shift",
+    "scheduling",
+    "project-management",
+    "canvas"
+  ]
+}
